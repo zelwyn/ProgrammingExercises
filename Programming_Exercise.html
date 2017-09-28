@@ -1,0 +1,208 @@
+<html>
+<head>
+	<title>Programming Exercise</title>
+	<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+	<style>
+		.weekend{
+			background-color:yellow;
+		}
+		.weekday{
+			background-color:green;
+		}
+		.holiday{
+			background-color:orange;
+		}
+		.invalid-date{
+			background-color:gray;
+		}
+		td{
+			text-align:center;		
+			padding: 5px;
+			min-width: 18px;
+			cursor: default;
+		}
+		.monthNameHeader{
+			background-color:aliceblue;
+		}
+	</style>
+</head>
+<body>
+	<div align="center">
+		<p>
+			<label>Start Date:</label>
+			<input type="date" id="txt_startDate"/>
+		</p>
+		<p>
+			<label>Number of days:</label>
+			<input type="number" id="txt_nDays"/>
+		</p>
+		<p>
+			<label>Country Code:</label>
+			<input type="text" id="txt_countryCode"/>
+		</p>
+		<p>
+			<button type="button" id="btn_generate">Generate!</button>
+		</p>
+	</div>
+	<div id="divTable" align="center">
+		
+	</div>
+	<script type="text/javascript">
+		let oHolyDays ={};
+		const sYearHolydays = "2008";
+
+		var getHolyDays = function(sCountryCode,callback){
+			$.ajax({
+				method:"get",
+				//contentType : "application/json", 
+    			dataType: 'json',
+    			async:true,
+  				url: "https://holidayapi.com/v1/holidays",
+  				data: {
+  						key: "6dc21ff6-3336-406c-900d-da1f2159df45",
+						country: sCountryCode,
+						year:sYearHolydays
+  						},
+  				beforeSend: function() {
+    				console.log("Getting Holidays ... ");
+  				},
+  				success:function(Response){
+  					console.log("Success");
+  					if(Response.status===200){
+  						oHolyDays = Response.holidays
+  						callback();
+  					}
+  				},
+  				error:function(err){
+  					console.log(err);
+  				}
+			});			
+		};
+
+		var generateCalendars = function(sStartDate,nDays){
+			var dDate = new Date(sStartDate);
+			
+			// constants
+			const oMonthNames = ["January", "February", "March", "April", "May", "June",
+  								"July", "August", "September", "October", "November", "December"];
+  			const oDaysSNames = ['S','M','T','W','T','F','S'];
+  			const nCols = oDaysSNames.length;
+  			const nRowsIni = 2; // 1 Month header + 1 WeekDays header		
+  			
+  			// init variables
+  			var oCalendars = new Array();
+  			var nRowCount = 0;  		
+  			var bExitMonth = false;  
+  			var bExit = false; 
+  			var nCountDaysMonth = 0;		
+  			var nCountDays = 0;
+  			var bModifiedMonth=false;
+
+  			while(!bExit){
+  				// get new variables
+  				var nWeekDay = dDate.getDay();
+				var nStartDate = dDate.getDate();
+				var nMonth = dDate.getMonth();
+				var nFullYear = dDate.getFullYear();
+  				var nLastDayMonth = new Date(nFullYear, nMonth + 1, 0).getDate();
+
+				var table = document.createElement("table");	
+  				table.border = 1;
+
+				while(!bExitMonth){
+				
+					var tr = document.createElement("tr")				
+					if(nRowCount === 1){
+						var td = document.createElement("td")
+						td.colSpan = nCols;
+						td.textContent = oMonthNames[nMonth] + " " + nFullYear; 
+						td.className = "monthNameHeader";
+						tr.append(td);
+					}else{
+						for(var col = 0;col<nCols;col++){
+							var td = document.createElement("td")
+							if(nRowCount === 0){
+								td.textContent = oDaysSNames[col]; 
+							}else{
+								var nRowWeek = nRowCount - nRowsIni;								
+								var nDaysDif = ((nRowWeek*nCols) + col) - nWeekDay;								
+								var nCurrentDate = nDaysDif + nStartDate;
+								if ((nCurrentDate >= nStartDate && nCurrentDate <= nLastDayMonth && nCountDays <= nDays)){
+									td.textContent = nCurrentDate;
+									if(col === 0 || col === 6){ 	// weekends
+										td.className = "weekend";
+									}else{							//weekdays
+										td.className = "weekday";
+									}
+									nCountDaysMonth += 1;
+									nCountDays += 1;
+								}else{
+									td.className = "invalid-date";
+								}
+
+								var sAttributeJsonHolidays = sYearHolydays + "-" + fnPadLeft((nMonth + 1).toString()) + "-" + fnPadLeft(nCurrentDate.toString());
+								if(oHolyDays[sAttributeJsonHolidays]!==undefined){
+									td.className = "holiday";
+									td.title = oHolyDays[sAttributeJsonHolidays][0].name;
+								}
+								if(nLastDayMonth === nCurrentDate){
+									bExitMonth = true;									
+								}
+								if(nCountDays === nDays){
+									bExitMonth = true;
+									bExit = true;
+								}
+							}
+							tr.append(td);
+						}	
+					}
+					table.append(tr);
+					nRowCount++;
+				}
+
+				oCalendars.push(table);
+				dDate.setDate(dDate.getDate() + nCountDaysMonth);
+				// reset variables
+				bExitMonth = false;
+				nRowCount = 0;
+				nCountDaysMonth = 0;
+			}	
+			return oCalendars;		
+		};
+
+		var fnPadLeft = function(strMonth_Day){			
+			var pad = "00"
+			return pad.substring(0, pad.length - strMonth_Day.length) + strMonth_Day;
+		};
+
+		var events = function(){
+
+			$("#btn_generate").on('click',function(){			
+
+				var sCountryCode = document.getElementById("txt_countryCode").value;
+
+				getHolyDays(sCountryCode,function(){
+					var sStartDate = document.getElementById("txt_startDate").value.split('-').join('/');
+					var nDays = document.getElementById("txt_nDays").value;
+					
+					var oCalendarsGen = generateCalendars(sStartDate,parseInt(nDays));
+
+					document.getElementById("divTable").textContent=""; // clean div
+
+					for(var i=0;i<oCalendarsGen.length;i++){
+						document.getElementById("divTable").append(oCalendarsGen[i]);
+						document.getElementById("divTable").append(document.createElement("br"));
+					}
+
+					$("td.holiday").on('mouseover',function(evt){	
+						
+					});
+				});									
+
+			});
+
+		}();
+
+	</script>
+</body>
+</html>
